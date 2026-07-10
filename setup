@@ -1,0 +1,95 @@
+#!/bin/bash
+
+if [[ $EUID -eq 0 ]] || ! command -v sudo &> /dev/null; then
+    echo "Error: Cannot run as root or with sudo privilages. Make sure sudo is installed but do not execute with sudo, you will be prompted later. Execute as normal user."
+    exit 1
+fi
+
+# Its in the repo this script is in.
+# Resolve the absolute path to the mprsyncup script NOW before any cd.
+mprsyncup_path="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/jobs/mprsyncup"
+
+# Delete cron.
+LOG_FILE="$HOME/mprsyncup.log"
+rm -f $LOG_FILE
+sudo rm -f /etc/cron.d/tigerports
+sudo rm -f /var/tmp/mprsyncup.lock
+
+sudo apt install --yes git curl mtree-netbsd libcurl4-openssl-dev
+
+# Move to homedir.
+cd "$(eval echo ~${SUDO_USER})"
+
+# Generate priv key.
+# Tar it for easy backup to local.
+
+if [ ! -f "tigerports-privkey.pem" ]; then
+	# The macports-base/doc/pubkey.in file says this.
+	#openssl genrsa -des3 -out tigerports-privkey.pem 2048
+	# No -des3 to avoid entering passphrase.
+	#openssl genrsa -out tigerports-privkey.pem 2048
+	openssl rsa -in tigerports-privkey.pem -pubout -out tigerports-pubkey.pem
+	sudo chown ${SUDO_USER}:${SUDO_USER} tigerports-privkey.pem
+	sudo chown ${SUDO_USER}:${SUDO_USER} tigerports-pubkey.pem
+	chmod 600 tigerports-privkey.pem
+	chmod 600 tigerports-pubkey.pem
+	echo "Copy .pem files into macports-base and push before running setup again."
+	exit 0
+fi
+
+sudo tee /etc/rsyncd.conf > /dev/null << 'EOF'
+# Global Linux Daemon Settings
+uid = nobody
+gid = nogroup
+use chroot = yes
+max connections = 10
+pid file = /var/run/rsyncd.pid
+
+[release]
+    comment = MacPorts rsync release repository, providing the current MacPorts "released" sources and the ports tree.
+    path = /var/www/rsync/macports/release
+
+[trunk]
+    comment = MacPorts rsync "trunk" repository, providing experimental MacPorts sources in svn's trunk/base.
+    path = /var/www/rsync/macports/trunk
+
+[dpupdate]
+    comment = Legacy MacPorts rsync repository for backwards compatibility with 1.4.x releases, providing svn's trunk/base and the ports tree.
+    path = /var/www/rsync/macports/dpupdate
+
+[dpupdate1]
+    comment = Legacy MacPorts rsync repository for backwards compatibility with 1.4.x releases, providing the current MacPorts "released" sources.
+    path = /var/www/rsync/macports/dpupdate1
+EOF
+
+# Create base folders.
+sudo mkdir -p /var/www/rsync/macports/release/base
+sudo mkdir -p /var/www/rsync/macports/release/ports
+sudo mkdir -p /var/www/rsync/macports/trunk/base
+
+# Symlinks and directory structure.
+cd /var/www/rsync/macports/
+
+sudo ln -sf ../release/ports trunk/dports
+sudo ln -sf trunk dpupdate
+sudo ln -sf release dpupdate1
+
+sudo chown -R ${SUDO_USER}:${SUDO_USER} /var/www/rsync/macports
+sudo find /var/www/rsync/macports -type d -exec chmod 755 {} +
+sudo find /var/www/rsync/macports -type f -exec chmod 644 {} +
+
+# Clean everything.
+
+# Delete paths
+sudo rm -rf /var/tmp/macports
+mkdir -p /var/tmp/macports/release/ports
+
+# Initial mpryncup invokation.
+"$mprsyncup_path"
+
+# This runs every 15 minutes.
+echo "*/15 * * * * $USER flock -n /var/tmp/mprsyncup.lock '$mprsyncup_path' >> '$LOG_FILE' 2>&1" | sudo tee /etc/cron.d/tigerports > /dev/null
+
+# Enable rsync on startup and start serving now.
+sudo systemctl enable rsync
+sudo systemctl restart rsync
