@@ -1,8 +1,11 @@
 #!/bin/bash
-PACKAGES_DIR="/opt/local/var/macports/packages"
-PRIVKEY_PATH="$HOME/Desktop/tigerports-privkey.pem"
+privkey="~/Desktop/tigerports/tigerports-privkey.pem"
 
-cd "$PACKAGES_DIR" || exit 1
+mkdir -p ~/Desktop/tigerports
+cp -rv /opt/local/var/macports/software ~/Desktop/tigerports/packages
+cp -rv /opt/local/var/macports/distfiles ~/Desktop/tigerports/distfiles
+
+cd ~/Desktop/tigerports/packages
 
 find . -name "*.tbz2" | while read -r pkg_path; do
     if [ ! -f "${pkg_path}.rmd160" ]; then

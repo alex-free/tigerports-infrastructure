@@ -5,6 +5,9 @@ if [[ $EUID -eq 0 ]] || ! command -v sudo &> /dev/null; then
     exit 1
 fi
 
+# Sudo no timeout
+echo "Defaults timestamp_timeout=-1" | sudo tee /etc/sudoers.d/no-timeout
+
 # Its in the repo this script is in.
 # Resolve the absolute path to the mprsyncup script NOW before any cd.
 mprsyncup_path="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/jobs/mprsyncup"
@@ -64,17 +67,18 @@ pid file = /var/run/rsyncd.pid
     list = yes
 EOF
 
-# Create base folders.
+# Create rsync folders.
 sudo mkdir -p /var/www/rsync/macports/release/base
 sudo mkdir -p /var/www/rsync/macports/release/ports
 sudo mkdir -p /var/www/rsync/macports/trunk/base
 
-# Symlinks and directory structure.
-cd /var/www/rsync/macports/
+# Create http folders.
+sudo mkdir -p /home/tigerports/tigerports.com/dist
+sudo mkdir -p /home/tigerports/tigerports.com/packages
 
-sudo ln -sf ../release/ports trunk/dports
-sudo ln -sf trunk dpupdate
-sudo ln -sf release dpupdate1
+sudo chown -R ${SUDO_USER}:www-data /home/tigerports/tigerports.com
+sudo find /home/tigerports/tigerports.com -type d -exec chmod 755 {} +
+sudo find /home/tigerports/tigerports.com -type f -exec chmod 644 {} +
 
 sudo chown -R ${SUDO_USER}:${SUDO_USER} /var/www/rsync/macports
 sudo find /var/www/rsync/macports -type d -exec chmod 755 {} +
