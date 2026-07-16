@@ -45,21 +45,23 @@ use chroot = yes
 max connections = 10
 pid file = /var/run/rsyncd.pid
 
+[macports]
+    comment = TigerPorts Infrastructure Base Namespace
+    path = /var/www/rsync/macports
+    read only = yes
+    list = yes
+
 [release]
     comment = MacPorts rsync release repository, providing the current MacPorts "released" sources and the ports tree.
     path = /var/www/rsync/macports/release
+    read only = yes
+    list = yes
 
 [trunk]
     comment = MacPorts rsync "trunk" repository, providing experimental MacPorts sources in svn's trunk/base.
     path = /var/www/rsync/macports/trunk
-
-[dpupdate]
-    comment = Legacy MacPorts rsync repository for backwards compatibility with 1.4.x releases, providing svn's trunk/base and the ports tree.
-    path = /var/www/rsync/macports/dpupdate
-
-[dpupdate1]
-    comment = Legacy MacPorts rsync repository for backwards compatibility with 1.4.x releases, providing the current MacPorts "released" sources.
-    path = /var/www/rsync/macports/dpupdate1
+    read only = yes
+    list = yes
 EOF
 
 # Create base folders.

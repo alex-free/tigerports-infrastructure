@@ -1,0 +1,12 @@
+#!/bin/bash
+PACKAGES_DIR="/opt/local/var/macports/packages"
+PRIVKEY_PATH="$HOME/Desktop/tigerports-privkey.pem"
+
+cd "$PACKAGES_DIR" || exit 1
+
+find . -name "*.tbz2" | while read -r pkg_path; do
+    if [ ! -f "${pkg_path}.rmd160" ]; then
+        echo "Signing: $pkg_path"
+        openssl dgst -ripemd160 -sign "$PRIVKEY_PATH" -out "${pkg_path}.rmd160" "$pkg_path"
+    fi
+done
