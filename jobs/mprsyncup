@@ -228,6 +228,8 @@ if [ "${RBASE_CHANGED}" -eq 1 ]; then
         # FIXED: Run distclean, silence output, and use || true to prevent 
         # the known port-file lookup bugs from killing the set -e cron script.
         make distclean > /dev/null 2>&1 || true
+        make clean all > /dev/null 2>&1 || true
+        make -C vendor clean > /dev/null 2>&1 || true
     )
 fi
 
