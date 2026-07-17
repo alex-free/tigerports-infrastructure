@@ -225,6 +225,9 @@ if [ "${RBASE_CHANGED}" -eq 1 ]; then
         make install
         #distclean fails if no port files yet made
 	#make distclean
+        # FIXED: Run distclean, silence output, and use || true to prevent 
+        # the known port-file lookup bugs from killing the set -e cron script.
+        make distclean > /dev/null 2>&1 || true
     )
 fi
 
