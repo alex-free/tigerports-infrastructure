@@ -39,9 +39,8 @@ RBASE=${GITROOT}/release/base
 PORTS=${GITROOT}/release/ports
 CONTRIB=${GITROOT}/release/contrib
 
-# CHANGED: Commented out original path and pointed to your verified /var/www rsync directory
 # RSYNCROOT=/rsync/macports
-RSYNCROOT=/var/www/rsync/macports
+RSYNCROOT=/var/www/html/macports
 
 #MPTOOLSPREFIX=/opt/local
 #MPBIN=${MPTOOLSPREFIX}/bin
@@ -168,9 +167,6 @@ else
     ${GIT} -C "${RBASE}" checkout -q "$(${BASENAME} ${RELEASE_URL})"
 fi
 
-${MKDIR} -p "${RSYNCROOT}/release/base"
-${RSYNC} -aIC --delete "${RBASE}/" "${RSYNCROOT}/release/base"
-
 #
 # Update release/ports
 #
@@ -225,11 +221,6 @@ if [ "${RBASE_CHANGED}" -eq 1 ]; then
         make install
         #distclean fails if no port files yet made
 	#make distclean
-        # FIXED: Run distclean, silence output, and use || true to prevent 
-        # the known port-file lookup bugs from killing the set -e cron script.
-        make distclean > /dev/null 2>&1 || true
-        make clean all > /dev/null 2>&1 || true
-        make -C vendor clean > /dev/null 2>&1 || true
     )
 fi
 
@@ -252,6 +243,12 @@ if [ "${PORTS_CHANGED}" -eq 1 ]; then
         done
     )
 fi
+
+make -C "${RBASE}" distclean > /dev/null 2>&1 || true
+make -C "${RBASE}" clean all > /dev/null 2>&1 || true
+make -C "${RBASE}"/vendor clean > /dev/null 2>&1 || true
+${MKDIR} -p "${RSYNCROOT}/release/base"
+${RSYNC} -aIC --delete "${RBASE}/" "${RSYNCROOT}/release/base"
 
 ${MKDIR} -p "${RSYNCROOT}/release/ports"
 ${RSYNC} -aIC --delete "${PORTS}/" "${RSYNCROOT}/release/ports"

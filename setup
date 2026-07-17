@@ -21,7 +21,7 @@ sudo rm -f /var/tmp/mprsyncup.lock
 sudo apt install --yes git curl mtree-netbsd libcurl4-openssl-dev
 
 # Move to homedir.
-cd "$(eval echo ~${SUDO_USER})"
+cd "$(eval echo ~${USER})"
 
 # Generate priv key.
 # Tar it for easy backup to local.
@@ -32,8 +32,8 @@ if [ ! -f "tigerports-privkey.pem" ]; then
 	# No -des3 to avoid entering passphrase.
 	#openssl genrsa -out tigerports-privkey.pem 2048
 	openssl rsa -in tigerports-privkey.pem -pubout -out tigerports-pubkey.pem
-	sudo chown ${SUDO_USER}:${SUDO_USER} tigerports-privkey.pem
-	sudo chown ${SUDO_USER}:${SUDO_USER} tigerports-pubkey.pem
+	sudo chown ${USER}:${USER} tigerports-privkey.pem
+	sudo chown ${USER}:${USER} tigerports-pubkey.pem
 	chmod 600 tigerports-privkey.pem
 	chmod 600 tigerports-pubkey.pem
 	echo "Copy .pem files into macports-base and push before running setup again."
@@ -51,22 +51,42 @@ pid file = /var/run/rsyncd.pid
 &include /var/tmp/macports/release/base/portmgr/rsync.repos
 EOF
 
+# My VPS needs to change the websrv root.
+sudo tee /etc/nginx/sites-enabled/default > /dev/null << 'EOF'
+server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+
+        root /var/www/html;
+        index index.php index.html;
+
+        server_name _;
+	
+	location ~ \.php$ {
+        	include snippets/fastcgi-php.conf;
+        	fastcgi_pass 127.0.0.1:9000;
+        }
+}
+EOF
+
+# Restart
+sudo nginx -t
+
+# 2. Reload the service instantly without dropping active network traffic
+sudo systemctl reload nginx
+
 # Create rsync folders.
-sudo mkdir -p /var/www/rsync/macports/release/base
-sudo mkdir -p /var/www/rsync/macports/release/ports
-sudo mkdir -p /var/www/rsync/macports/trunk/base
+sudo mkdir -p /var/www/html/macports/release/base
+sudo mkdir -p /var/www/html/macports/release/ports
+sudo mkdir -p /var/www/html/macports/trunk/base
 
 # Create http folders.
-sudo mkdir -p /home/tigerports/tigerports.com/dist
-sudo mkdir -p /home/tigerports/tigerports.com/packages
+sudo mkdir -p /var/www/html/macports/distfiles
+sudo mkdir -p /var/www/html/macports/packages
 
-sudo chown -R ${SUDO_USER}:www-data /home/tigerports/tigerports.com
-sudo find /home/tigerports/tigerports.com -type d -exec chmod 755 {} +
-sudo find /home/tigerports/tigerports.com -type f -exec chmod 644 {} +
-
-sudo chown -R ${SUDO_USER}:${SUDO_USER} /var/www/rsync/macports
-sudo find /var/www/rsync/macports -type d -exec chmod 755 {} +
-sudo find /var/www/rsync/macports -type f -exec chmod 644 {} +
+sudo chown -R ${USER}:www-data /var/www/html/macports/
+sudo find /var/www/html/macports/ -type d -exec chmod 755 {} +
+sudo find /var/www/html/macports/ -type f -exec chmod 644 {} +
 
 # Clean everything.
 
