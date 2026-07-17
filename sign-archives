@@ -1,15 +1,20 @@
 #!/bin/bash
-privkey="~/Desktop/tigerports/tigerports-privkey.pem"
+priv_key="~/tigerports-privkey.pem"
 
-mkdir -p ~/Desktop/tigerports
-cp -rv /opt/local/var/macports/software ~/Desktop/tigerports/packages
-cp -rv /opt/local/var/macports/distfiles ~/Desktop/tigerports/distfiles
+mkdir -p /var/www/html/macports/distfiles
+sudo chown -R ${USER}:www-data /var/www/html/macports/distfiles
+sudo find /var/www/html/macports/distfiles -type d -exec chmod 755 {} +
+sudo find /var/www/html/macports/distfiles -type f -exec chmod 644 {} +
 
-cd ~/Desktop/tigerports/packages
+mkdir -p /var/www/html/macports/packages
+sudo chown -R ${USER}:www-data /var/www/html/macports/packages
+sudo find /var/www/html/macports/packages -type d -exec chmod 755 {} +
+sudo find /var/www/html/macports/packages -type f -exec chmod 644 {} +
+cd /var/www/html/macports/packages
 
 find . -name "*.tbz2" | while read -r pkg_path; do
     if [ ! -f "${pkg_path}.rmd160" ]; then
         echo "Signing: $pkg_path"
-        openssl dgst -ripemd160 -sign "$PRIVKEY_PATH" -out "${pkg_path}.rmd160" "$pkg_path"
+        openssl dgst -ripemd160 -sign "$priv_key" -out "${pkg_path}.rmd160" "$pkg_path"
     fi
 done
