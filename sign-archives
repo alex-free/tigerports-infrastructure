@@ -1,5 +1,5 @@
 #!/bin/bash
-priv_key="~/tigerports-privkey.pem"
+priv_key="$HOME/tigerports-privkey.pem"
 
 mkdir -p /var/www/html/macports/distfiles
 sudo chown -R ${USER}:www-data /var/www/html/macports/distfiles
