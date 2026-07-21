@@ -58,6 +58,8 @@ server {
         listen [::]:80 default_server;
 
         root /var/www/html;
+        autoindex on;
+
         index index.php index.html;
 
         server_name _;
@@ -75,6 +77,9 @@ sudo nginx -t
 # 2. Reload the service instantly without dropping active network traffic
 sudo systemctl reload nginx
 
+# Clean dirs since this is initial setup.
+sudo rm -rf /va/rww/html/macports
+
 # Create rsync folders.
 sudo mkdir -p /var/www/html/macports/release/base
 sudo mkdir -p /var/www/html/macports/release/ports
@@ -84,7 +89,8 @@ sudo mkdir -p /var/www/html/macports/trunk/base
 sudo mkdir -p /var/www/html/macports/distfiles
 sudo mkdir -p /var/www/html/macports/packages
 
-sudo chown -R ${USER}:www-data /var/www/html/macports/
+# Make writable by current user for scp upload
+sudo chown -R ${USER}:www-data /var/www/html
 sudo find /var/www/html/macports/ -type d -exec chmod 755 {} +
 sudo find /var/www/html/macports/ -type f -exec chmod 644 {} +
 
