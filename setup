@@ -100,6 +100,9 @@ sudo find /var/www/html/macports/ -type f -exec chmod 644 {} +
 sudo rm -rf /var/tmp/macports
 mkdir -p /var/tmp/macports/release/ports
 
+# Add Mac OS admin group before running mprsyncup
+sudo groupadd admin > /dev/null 2>&1
+
 # Initial mpryncup invokation.
 "$mprsyncup_path"
 

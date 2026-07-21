@@ -38,10 +38,8 @@ TBASE=${GITROOT}/trunk/base
 RBASE=${GITROOT}/release/base
 PORTS=${GITROOT}/release/ports
 CONTRIB=${GITROOT}/release/contrib
-
 # RSYNCROOT=/rsync/macports
 RSYNCROOT=/var/www/html/macports
-
 #MPTOOLSPREFIX=/opt/local
 #MPBIN=${MPTOOLSPREFIX}/bin
 
@@ -49,43 +47,29 @@ RSYNCROOT=/var/www/html/macports
 # not be substituted within double quotes. Thus, there must not be any
 # globbing characters, and the command itself must not contain spaces.
 
-# CHANGED: Mapped commands directly to standard Linux paths instead of the missing ${MPBIN} prefix
 # GIT="${MPBIN}/git"
 GIT="/usr/bin/git"
 
 # RSYNC="${MPBIN}/rsync -q"
 RSYNC="/usr/bin/rsync -q"
-
 RM="/bin/rm"
 MKDIR="/bin/mkdir"
-
 #MV="${MPBIN}/gmv"
-# CHANGED: Linux uses standard 'mv' instead of the macOS MacPorts 'gmv' alias
-# MV=mv
 MV="/bin/mv"
-
 LN="/bin/ln"
 TAR="/bin/tar"
 OPENSSL="/usr/bin/openssl"
 AWK="/usr/bin/awk"
-
 #STAT="${MPBIN}/gstat"
-# CHANGED: Linux uses standard 'stat' instead of the macOS MacPorts 'gstat' alias
-# STAT=stat
 STAT="/usr/bin/stat"
-
 #GZIP="${MPBIN}/gzip"
-# CHANGED: Pointed explicitly to absolute native path
-# GZIP=gzip
 GZIP="/bin/gzip"
-
 BASENAME="/usr/bin/basename"
 TCLSH="${PREFIX}/bin/port-tclsh"
 PORTINDEX="${PREFIX}/bin/portindex"
 PORTINDEX2JSON="${CONTRIB}/portindex2json/portindex2json.tcl"
 
-# CHANGED: Stripped trailing '${MPBIN}' because it evaluates to an empty string on Linux
-# PATH=${PREFIX}/bin:/bin:/usr/bin:/usr/sbin:${MPBIN}
+#PATH=${PREFIX}/bin:/bin:/usr/bin:/usr/sbin:${MPBIN}
 PATH=${PREFIX}/bin:/bin:/usr/bin:/usr/sbin
 
 # Platforms we generate indexes for. This is intentionally split on
@@ -149,9 +133,6 @@ if [ -z "${RELEASE_URL}" ]; then
     echo "no RELEASE_URL specified in git master, bailing out!"
     exit 1
 fi
-
-# CHANGED: Added directory creation check to prevent hardlink crashes if targets are initialized dry
-${MKDIR} -p "${RSYNCROOT}/distfiles/MacPorts"
 hardlink "${RSYNCROOT}/trunk/base/${RELEASE_URL_FILE}" "${RSYNCROOT}/distfiles/MacPorts/$(${BASENAME} ${RELEASE_URL_FILE})"
 
 RBASE_CHANGED=1
@@ -167,6 +148,9 @@ else
     ${GIT} -C "${RBASE}" checkout -q "$(${BASENAME} ${RELEASE_URL})"
 fi
 
+${MKDIR} -p "${RSYNCROOT}/release/base"
+${RSYNC} -aIC --delete "${RBASE}/" "${RSYNCROOT}/release/base"
+
 #
 # Update release/ports
 #
@@ -179,11 +163,8 @@ if [ -d "${PORTS}/.git" ]; then
     PORTS_NEW_REV="$(${GIT} rev-parse HEAD)"
     [ "${PORTS_OLD_REV}" = "${PORTS_NEW_REV}" ] && PORTS_CHANGED=0
 else
-     # Make sure the directory exists.
-    ${MKDIR} -p "${PORTS}"
-    ${GIT} clone -q --depth 1 "${PORTSURL}" "${PORTS}"
-    # Make sure to cd into the directory.
     cd "${PORTS}"
+    ${GIT} clone -q --depth 1 "${PORTSURL}" "${PORTS}"
     PORTS_NEW_REV="$(${GIT} rev-parse HEAD)"
 fi
 
@@ -208,19 +189,13 @@ if [ "${RBASE_CHANGED}" -eq 1 ]; then
             --with-install-group="$(id -gn)" \
             --with-install-user="$(id -un)"
         make clean
-	sed -i 's/gname=admin/gname=root/g' doc/prefix.mtree
-        sed -i 's/gname=admin/gname=root/g' doc/base.mtree        
-        # CHANGED: Added an alternative path calculation loop to utilize Linux parallel multi-core processors
         JOBS=1
         if [ "$(uname -s)" = "Darwin" ]; then
             JOBS="$(sysctl -n hw.activecpu)"
-        elif [ "$(uname -s)" = "Linux" ]; then
-            JOBS="$(nproc)"
         fi
         make -j"$JOBS"
         make install
-        #distclean fails if no port files yet made
-	#make distclean
+        make distclean
     )
 fi
 
@@ -231,9 +206,9 @@ if [ "${PORTS_CHANGED}" -eq 1 ]; then
         # Intentionally split PLATFORMS on whitespace.
         for PLATFORM in $PLATFORMS; do
             INDEX="PortIndex_darwin_${PLATFORM}"
-            # CHANGED: Removed reference to 'expand' binary which is commonly dropped from clean Linux minimal templates
             ${PORTINDEX} -p "macosx_${PLATFORM}" -o "${INDEX}" \
-                | ${AWK} '{ print "Updating " idx ":\t" $0 }' idx="$INDEX"
+                | ${AWK} '{ print "Updating " idx ":\t" $0 }' idx="$INDEX" \
+                | expand -t 40,48,56,64,72,80
         done
 
         # generate json for each platform-specific index
@@ -243,12 +218,6 @@ if [ "${PORTS_CHANGED}" -eq 1 ]; then
         done
     )
 fi
-
-make -C "${RBASE}" distclean > /dev/null 2>&1 || true
-make -C "${RBASE}" clean all > /dev/null 2>&1 || true
-make -C "${RBASE}"/vendor clean > /dev/null 2>&1 || true
-${MKDIR} -p "${RSYNCROOT}/release/base"
-${RSYNC} -aIC --delete "${RBASE}/" "${RSYNCROOT}/release/base"
 
 ${MKDIR} -p "${RSYNCROOT}/release/ports"
 ${RSYNC} -aIC --delete "${PORTS}/" "${RSYNCROOT}/release/ports"
@@ -283,8 +252,7 @@ if [ "${PORTS_CHANGED}" -eq 1 ]; then
     done
     sign "${ROOT}"/ports.tar "${ROOT}"/PortIndex_*/PortIndex
     if [ -x "${GZIP}" ]; then
-        # CHANGED: Removed standard GNU '--rsyncable' flag as some modern distributions drop custom patches to upstream gzip packages
-        ${GZIP} --best --keep --suffix .gz-rsync "${ROOT}"/ports.tar
+        ${GZIP} --best --keep --rsyncable --suffix .gz-rsync "${ROOT}"/ports.tar
         sign "${ROOT}"/ports.tar.gz-rsync
     fi
 fi
