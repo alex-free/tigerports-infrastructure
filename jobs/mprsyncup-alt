@@ -1,0 +1,204 @@
+#! /bin/bash
+
+# Alternate method of updating MacPorts rsync files.
+
+set -e
+
+echo "Starting update of rsync files at $(date -u -Iseconds)"
+
+# Read shell fragment with config variables if specified
+if [ -f "$MPRSYNCUP_CONFIG" ]; then
+    . "$MPRSYNCUP_CONFIG"
+fi
+
+# Defaults
+OPENSSL=${OPENSSL:-/usr/bin/openssl}
+RSYNC=${RSYNC:-/usr/bin/rsync}
+SIGNIFY=${SIGNIFY:-/usr/bin/signify-openbsd}
+TAR=${TAR:-/usr/bin/tar}
+BZIP2=${BZIP2:-/usr/bin/bzip2}
+GZIP=${GZIP:-/usr/bin/gzip}
+REDIS_CLI=${REDIS_CLI:-/usr/bin/redis-cli}
+# signify public key used to verify base releases
+BASE_PUBKEY=${BASE_PUBKEY:-/var/keys/macports-base-2024.pub}
+# args to pass to tar to make the archive more reproducible
+TAR_REPRO_ARGS="--numeric-owner --group=0 --owner=0 --sort=name"
+
+# Path where the public mirrored files should be deployed
+if [ -z "$MIRROR_PUBLIC_PATH" ]; then
+    echo "Must specify MIRROR_PUBLIC_PATH"
+    exit 1
+fi
+# Path to where ports trees uploaded by GitHub Actions can be found
+if [ -z "$MIRROR_UPLOAD_PATH" ]; then
+    echo "Must specify MIRROR_UPLOAD_PATH"
+    exit 1
+fi
+# Path to openssl private key file used to sign base and ports tarballs
+if [ -z "$PRIVKEY" ]; then
+    echo "Must specify PRIVKEY"
+    exit 1
+fi
+
+BASEDIR=$(pwd)
+
+rm -rf "${BASEDIR}/rsyncroot"
+mkdir -p "${BASEDIR}/rsyncroot/release/tarballs"
+
+# Check for a newer base release
+NEW_BASE=0
+if [ -f "${MIRROR_PUBLIC_PATH}/distfiles/MacPorts/RELEASE_URL" ]; then
+    NEW_BASE_VERS="$(cat "${MIRROR_PUBLIC_PATH}/distfiles/MacPorts/RELEASE_URL" | sed -E 's/.*v([0-9.]+)$/\1/')"
+    echo "Latest base version is $NEW_BASE_VERS"
+    if [ -f "${MIRROR_PUBLIC_PATH}/release/tarballs/base.tar" ]; then
+        CUR_BASE_VERS="$("$TAR" -xOf "${MIRROR_PUBLIC_PATH}/release/tarballs/base.tar" base/config/macports_version)"
+        echo "Currently mirrored base version is $CUR_BASE_VERS"
+        if [ "$CUR_BASE_VERS" != "$NEW_BASE_VERS" ]; then
+            NEW_BASE=1
+        fi
+    else
+        NEW_BASE=1
+    fi
+fi
+
+# Update base.tar (for selfupdate with older clients)
+if [ "$NEW_BASE" = 1 -a -f "${MIRROR_PUBLIC_PATH}/distfiles/MacPorts/MacPorts-${NEW_BASE_VERS}.tar.bz2" \
+        -a -f "${MIRROR_PUBLIC_PATH}/distfiles/MacPorts/MacPorts-${NEW_BASE_VERS}.tar.bz2.sig" ]; then
+    if "$SIGNIFY" -V -p "$BASE_PUBKEY" \
+            -m "${MIRROR_PUBLIC_PATH}/distfiles/MacPorts/MacPorts-${NEW_BASE_VERS}.tar.bz2" \
+            -s "${MIRROR_PUBLIC_PATH}/distfiles/MacPorts/MacPorts-${NEW_BASE_VERS}.tar.bz2.sig"; then
+        echo "Signature verified for MacPorts-${NEW_BASE_VERS}.tar.bz2"
+        rm -rf "${BASEDIR}/rsyncroot/release/tarballs/base" "${BASEDIR}/rsyncroot/release/tarballs/MacPorts-${NEW_BASE_VERS}"
+
+        echo "Creating base.tar"
+        "$TAR" -C "${BASEDIR}/rsyncroot/release/tarballs" \
+            -xf "${MIRROR_PUBLIC_PATH}/distfiles/MacPorts/MacPorts-${NEW_BASE_VERS}.tar.bz2" \
+            --use-compress-program "$BZIP2"
+        mv "${BASEDIR}/rsyncroot/release/tarballs/MacPorts-${NEW_BASE_VERS}" "${BASEDIR}/rsyncroot/release/tarballs/base"
+        "$TAR" -C "${BASEDIR}/rsyncroot/release/tarballs" -c $TAR_REPRO_ARGS -f "${BASEDIR}/rsyncroot/release/tarballs/base.tar" base
+        rm -rf "${BASEDIR}/rsyncroot/release/tarballs/base" "${BASEDIR}/rsyncroot/release/tarballs/MacPorts-${NEW_BASE_VERS}"
+
+        echo "Signing base.tar"
+        "$OPENSSL" dgst -ripemd160 -sign "${PRIVKEY}" \
+            -out "${BASEDIR}/rsyncroot/release/tarballs/base.tar.rmd160" \
+            "${BASEDIR}/rsyncroot/release/tarballs/base.tar"
+    else
+        echo "Failed to verify signature for MacPorts-${NEW_BASE_VERS}.tar.bz2!"
+    fi
+fi
+
+# Prepare ports tree and PortIndex dirs
+
+NEW_PORTS=0
+# Figure out the ports tree tarball corresponding to the latest commit
+# recorded as mirrored. This will be what the GitHub Actions job tries
+# to download next time it runs, so we can only delete the tarballs
+# older than this one.
+if [ -x "$REDIS_CLI" ]; then
+    echo "Getting latest mirrored commit from redis db"
+    LAST_MIRRORED_COMMIT="$(redis-cli get mirror.last_commit)"
+    if [ -n "$LAST_MIRRORED_COMMIT" ]; then
+        echo "Got $LAST_MIRRORED_COMMIT"
+        LATEST_PORTS_FROM_DB="${MIRROR_UPLOAD_PATH}/portindex-${LAST_MIRRORED_COMMIT}.tar.bz2"
+    else
+        echo "No latest mirrored commit found"
+    fi
+else
+    echo "Can't find redis-cli"
+fi
+# Find the most recently uploaded ports tree tarball. This is what we
+# will actually deploy. It will usually be the same as the latest
+# mirrored commit, but not always.
+LATEST_PORTS_UPLOAD="$(ls -1t "${MIRROR_UPLOAD_PATH}"/portindex-*.tar.bz2 | head -n1)"
+if [ -z "$LATEST_PORTS_FROM_DB" -o ! -f "$LATEST_PORTS_FROM_DB" ]; then
+    echo "Falling back to assuming latest uploaded ports is latest mirrored"
+    LATEST_PORTS_FROM_DB="$LATEST_PORTS_UPLOAD"
+fi
+if [ -z "$LATEST_PORTS_UPLOAD" ]; then
+    echo "No uploaded ports"
+elif [ ! -f "${BASEDIR}/last_deployed_ports" -o \
+        "$(basename "$LATEST_PORTS_UPLOAD")" != "$(cat "${BASEDIR}/last_deployed_ports")" ]; then
+
+    # Clean up older uploads
+    echo "Cleaning up old ports uploads"
+    find "${MIRROR_UPLOAD_PATH}" -maxdepth 1 -type f -name "portindex-*.tar.bz2" \
+        -not -newer "$LATEST_PORTS_FROM_DB" -not -samefile "$LATEST_PORTS_FROM_DB" \
+        -delete -printf "Deleted %f\n"
+    rm -rf "${BASEDIR}/rsyncroot/release/tarballs/extract"
+    mkdir -p "${BASEDIR}/rsyncroot/release/tarballs/extract"
+    echo "Extracting latest ports from $LATEST_PORTS_UPLOAD"
+    "$TAR" -C "${BASEDIR}/rsyncroot/release/tarballs/extract" -xf "$LATEST_PORTS_UPLOAD" \
+        --use-compress-program "$BZIP2"
+
+    # Create ports.tar
+    echo "Creating release/tarballs/ports.tar(.gz)"
+    rm -f "${BASEDIR}/rsyncroot/release/tarballs/ports.tar" "${BASEDIR}/rsyncroot/release/tarballs/ports.tar.gz"
+    "$TAR" -C "${BASEDIR}/rsyncroot/release/tarballs/extract" -c $TAR_REPRO_ARGS -f "${BASEDIR}/rsyncroot/release/tarballs/ports.tar" ports
+    "$GZIP" --best --keep --no-name --rsyncable "${BASEDIR}/rsyncroot/release/tarballs/ports.tar"
+
+    # Create daily tarball
+    echo "Creating daily tarball"
+    rm -f "${BASEDIR}/rsyncroot/distfiles/ports.tar.gz" "${BASEDIR}/rsyncroot/release/ports.tar.gz"
+    mkdir -p "${BASEDIR}/rsyncroot/distfiles"
+    mv "${BASEDIR}"/rsyncroot/release/tarballs/extract/PortIndex* "${BASEDIR}"/rsyncroot/release/tarballs/extract/ports
+    "$TAR" -C "${BASEDIR}/rsyncroot/release/tarballs/extract" --exclude 'PortIndex*/PortIndex.json' \
+        -c --use-compress-program "$GZIP --best --no-name --rsyncable" $TAR_REPRO_ARGS \
+        -f "${BASEDIR}/rsyncroot/release/ports.tar.gz" ports
+    ln "${BASEDIR}/rsyncroot/release/ports.tar.gz" "${BASEDIR}/rsyncroot/distfiles/ports.tar.gz"
+
+    # Put PortIndex dirs in place
+    echo "Moving PortIndex dirs"
+    mv "${BASEDIR}"/rsyncroot/release/tarballs/extract/ports/PortIndex* "${BASEDIR}"/rsyncroot/release/tarballs
+    echo "Deleting temp extracted ports tree"
+    rm -rf "${BASEDIR}/rsyncroot/release/tarballs/extract"
+
+    # Sign files
+    for f in "${BASEDIR}"/rsyncroot/release/tarballs/ports.tar{,.gz} \
+             "${BASEDIR}"/rsyncroot/release/tarballs/PortIndex*/PortIndex \
+             "${BASEDIR}"/rsyncroot/{release,distfiles}/ports.tar.gz; do
+        echo "Signing $f"
+        "$OPENSSL" dgst -ripemd160 -sign "${PRIVKEY}" -out "${f}.rmd160" "${f}"
+        if [ -n "$PRIVKEY_SIGNIFY" ]; then
+            "$SIGNIFY" -S -s "$PRIVKEY_SIGNIFY" -x "${f}.sig" -m "${f}"
+        fi
+    done
+
+    echo "$(basename "$LATEST_PORTS_UPLOAD")" > "${BASEDIR}/last_deployed_ports"
+    NEW_PORTS=1
+fi
+
+if [ "$NEW_BASE" = 1 -o "$NEW_PORTS" = 1 ]; then
+    # Ensure readability
+    echo "Setting permissions"
+    chmod -R a+rX "${BASEDIR}/rsyncroot"
+
+    HOSTOS="$(uname -s)"
+
+    # Stop rsyncd once there are no connections
+    if [ "$HOSTOS" = "Linux" ]; then
+        WAITED=0
+        echo "Waiting for rsyncd to be idle since $(date -u -Iseconds)"
+        while [ -n "$(ss -H 'sport = :rsync')" ]; do
+            sleep 10
+            WAITED=$(( $WAITED + 10 ))
+            if [ "$WAITED" -ge 7200 ]; then
+                echo "Waited $(( $WAITED / 60 )) minutes for rsync connections to close, shutting down anyway"
+                break
+            fi
+        done
+        echo "Stopping rsyncd at $(date -u -Iseconds)"
+        sudo /usr/bin/systemctl stop rsync
+    fi
+
+    # Sync files
+    echo "Rsyncing files"
+    "$RSYNC" -aHv "${BASEDIR}"/rsyncroot/ "$MIRROR_PUBLIC_PATH"
+
+    # Start rsyncd
+    if [ "$HOSTOS" = "Linux" ]; then
+        echo "Starting rsyncd"
+        sudo /usr/bin/systemctl start rsync
+    fi
+fi
+
+echo "Finished update of rsync files at $(date -u -Iseconds)"
