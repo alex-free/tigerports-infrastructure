@@ -160,11 +160,13 @@ if [ -d "${PORTS}/.git" ]; then
     cd "${PORTS}"
     PORTS_OLD_REV="$(${GIT} rev-parse HEAD)"
     ${GIT} pull -q
+    ${GIT} submodule sync --recursive
+    ${GIT} submodule update --init --recursive
     PORTS_NEW_REV="$(${GIT} rev-parse HEAD)"
     [ "${PORTS_OLD_REV}" = "${PORTS_NEW_REV}" ] && PORTS_CHANGED=0
 else
     cd "${PORTS}"
-    ${GIT} clone -q --depth 1 "${PORTSURL}" "${PORTS}"
+    ${GIT} clone --recursive -q --depth 1 "${PORTSURL}" "${PORTS}"
     PORTS_NEW_REV="$(${GIT} rev-parse HEAD)"
 fi
 
