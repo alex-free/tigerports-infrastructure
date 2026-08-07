@@ -13,8 +13,6 @@ sudo find /var/www/html/macports/packages -type f -exec chmod 644 {} +
 cd /var/www/html/macports/packages
 
 find . -name "*.tbz2" | while read -r pkg_path; do
-    if [ ! -f "${pkg_path}.rmd160" ]; then
-        echo "Signing: $pkg_path"
-        openssl dgst -ripemd160 -sign "$priv_key" -out "${pkg_path}.rmd160" "$pkg_path"
-    fi
+    echo "Signing: $pkg_path"
+    openssl dgst -ripemd160 -sign "$priv_key" -out "${pkg_path}.rmd160" "$pkg_path"
 done
