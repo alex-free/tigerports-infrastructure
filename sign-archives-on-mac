@@ -1,9 +1,0 @@
-#!/bin/bash
-priv_key="$HOME/dev/tigerports-keys/tigerports-privkey.pem"
-
-cd $HOME/dev/tigerports.com-files/software
-
-find . -name "*.tbz2" | while read -r pkg_path; do
-    echo "Signing: $pkg_path"
-    openssl dgst -ripemd160 -sign "$priv_key" -out "${pkg_path}.rmd160" "$pkg_path"
-done

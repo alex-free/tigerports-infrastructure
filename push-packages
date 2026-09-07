@@ -10,9 +10,13 @@ mkdir -p /var/www/html/macports/packages
 sudo chown -R ${USER}:www-data /var/www/html/macports/packages
 sudo find /var/www/html/macports/packages -type d -exec chmod 755 {} +
 sudo find /var/www/html/macports/packages -type f -exec chmod 644 {} +
-cd /var/www/html/macports/packages
+cd /var/www/html/tmp
 
 find . -name "*.tbz2" | while read -r pkg_path; do
     echo "Signing: $pkg_path"
     openssl dgst -ripemd160 -sign "$priv_key" -out "${pkg_path}.rmd160" "$pkg_path"
 done
+
+# More 'instant' then straight scp into /var/www/html/macports/packages...
+cp -rv /var/www/html/tmp/* /var/www/html/macports/packages/
+rm -rf /var/www/html/tmp/*
