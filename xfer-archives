@@ -1,0 +1,3 @@
+#!/bin/bash
+
+scp -r /opt/local/var/macports/software/* tigerports@tigerports.com:/var/www/html/tmp/

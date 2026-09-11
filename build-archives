@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -e 
+export PATH=/opt/local/bin:/opt/local/sbin:$PATH
+port -d -N selfupdate 
+port -N upgrade outdated
+# Twice for apple-gcc-42 for bootstrap.
+port -d -N install \
+    apple-gcc42 \
+    apple-gcc42 \
+    gcc16 \
+    git \
+    libsdl2 \
+    openssh \
+    openssl \
+    openvpn2 \
+    curl \
+    libsdl \
+    mplayer \
+    python314 \
+
+unset -e
+# Not working on Intel yet so seperate:
+port -d -N install \
+    ffmpeg
