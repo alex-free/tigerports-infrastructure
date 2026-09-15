@@ -18,6 +18,6 @@ find . -name "*.tbz2" | while read -r pkg_path; do
 done
 
 # More 'instant' then straight scp into /var/www/html/macports/packages...
-rm -rf /var/www/html/macports/packages/
+rm -rf /var/www/html/macports/packages/*
 mv /var/www/html/tmp/* /var/www/html/macports/packages/
 rm -rf /var/www/html/tmp/*
