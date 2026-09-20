@@ -3,7 +3,7 @@
 set -e 
 export PATH=/opt/local/bin:/opt/local/sbin:$PATH
 port -d -N selfupdate 
-port -N upgrade outdated
+port -d -N upgrade outdated
 # Twice for apple-gcc-42 for bootstrap.
 port -d -N install \
     apple-gcc42 \
@@ -18,8 +18,19 @@ port -d -N install \
     libsdl \
     mplayer \
     python314 \
+    ffmpeg \
+    aria2 \
+    vim
 
-unset -e
+# Optimized builds:
+if [ "$(machine)" == "ppc970" ]; then
+    sudo port -d -N install \
+        ffmpeg +G5 \
+        ffmpeg +G4 \
+	mplayer +G5 \
+	mplayer +G4
+fi
+
 # Not working on Intel yet so seperate:
 port -d -N install \
-    ffmpeg
+    mplayer 
