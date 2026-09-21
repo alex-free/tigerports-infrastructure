@@ -25,12 +25,12 @@ port -d -N install \
 # Optimized builds:
 if [ "$(machine)" == "ppc970" ]; then
     sudo port -d -N install \
-        ffmpeg +G5 \
         ffmpeg +G4 \
-	mplayer +G5 \
-	mplayer +G4
+        ffmpeg +G5 \
+	ffmpeg \
+	mplayer +G4 \
+	mplayer +G5
+        mplayer
+else
+	ffmpeg
 fi
-
-# Not working on Intel yet so seperate:
-port -d -N install \
-    mplayer 
