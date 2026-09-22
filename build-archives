@@ -16,7 +16,6 @@ port -d -N install \
     openvpn2 \
     curl \
     libsdl \
-    mplayer \
     python314 \
     ffmpeg \
     aria2 \
@@ -27,10 +26,7 @@ if [ "$(machine)" == "ppc970" ]; then
     sudo port -d -N install \
         ffmpeg +G4 \
         ffmpeg +G5 \
-	ffmpeg \
 	mplayer +G4 \
 	mplayer +G5
         mplayer
-else
-	ffmpeg
 fi
