@@ -19,8 +19,8 @@ port -d -N install \
     python314 \
     ffmpeg \
     aria2 \
-    vim
-
+    vim \
+    bash
 # Optimized builds:
 if [ "$(machine)" == "ppc970" ]; then
     sudo port -d -N install \
