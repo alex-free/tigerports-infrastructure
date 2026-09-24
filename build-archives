@@ -20,7 +20,9 @@ port -d -N install \
     ffmpeg \
     aria2 \
     vim \
-    bash
+    bash \
+    xorg \
+    nano
 # Optimized builds:
 if [ "$(machine)" == "ppc970" ]; then
     sudo port -d -N install \
