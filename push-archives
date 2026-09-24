@@ -19,8 +19,8 @@ done
 
 # Stats. 
 binary_archives_stats=/var/www/html/binary-archives-stats.txt
-tiger_ppc_package_count=$(find . -iname "*8.ppc.tar.bz2" | wc -l)
-tiger_i386_package_count=$(find . -iname "*8.i386.tar.bz2" | wc -l)
+tiger_ppc_package_count=$(find . -iname "*8.ppc.tbz2" | wc -l)
+tiger_i386_package_count=$(find . -iname "*8.i386.tbz2" | wc -l)
 echo "Binary archives built for Tiger as of $date:" > $binary_archives_stats
 echo "ppc: $tiger_ppc_package_count" >> $binary_archives_stats
 echo "i386: $tiger_i386_package_count" >> $binary_archives_stats
