@@ -1,3 +1,37 @@
 #!/bin/bash
 
-scp -r /opt/local/var/macports/software/* tigerports@tigerports.com:/var/www/html/tmp/
+archives_sec=~/Desktop/tigerports-keys/tigerports-archives-2027.sec
+
+if [[ ! -e "$archives_sec" ]]; then
+    echo "Error: can't find signing key: $archives_sec"
+    exit 1
+fi
+
+# When this script exits, automatically delete the temp directory.
+cleanup() 
+{ 
+    if [[ -e $tmp ]]; then
+        echo "Clearing temp files..."  
+        rm -rf $tmp   
+    fi
+}
+trap cleanup EXIT
+
+tmp=$(mktemp -d /var/tmp/"$(basename "$0")".XXX)
+
+if command -v signify >/dev/null 2>&1; then
+    echo "Got signify at $(which signify)"
+else
+    sudo port -d -N install signify
+fi
+
+cp -rv /opt/local/var/macports/software/* $tmp
+
+cd $tmp
+
+find . -name "*.tbz2" | while read -r pkg_path; do
+    echo "Signing: $pkg_path"
+    signify -S -s "$archives_sec" -m "$pkg_path"
+done 
+
+scp -r $tmp/* tigerports@tigerports.com:/var/www/html/tmp/
