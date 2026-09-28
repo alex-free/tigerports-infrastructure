@@ -22,13 +22,23 @@ port -d -N install \
     vim \
     bash \
     xorg \
-    nano
+    nano \
+    wget
+
+set +e
 # Optimized builds:
 if [ "$(machine)" == "ppc970" ]; then
-    sudo port -d -N install \
-        ffmpeg +G4 \
-        ffmpeg +G5 \
-	mplayer +G4 \
-	mplayer +G5
-        mplayer
+    sudo port deactivate ffmpeg
+    sudo port -d -N install ffmpeg +G4
+    sudo port deactivate ffmpeg
+    sudo port -d -N install ffmpeg +G5
+
+    sudo port deactivate mplayer
+    sudo port -d -N install mplayer
+
+    sudo port deactivate mplayer
+    sudo port -d -N install mplayer +G4
+
+    sudo port deactivate mplayer
+    sudo port -d -N install mplayer +G5
 fi
