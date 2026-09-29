@@ -24,7 +24,9 @@ port -d -N install \
     xorg \
     nano \
     wget \
-    cmark
+    cmark \
+    gmake \
+    cmake
 
 set +e
 # Optimized builds:
