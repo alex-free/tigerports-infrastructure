@@ -23,7 +23,8 @@ port -d -N install \
     bash \
     xorg \
     nano \
-    wget
+    wget \
+    cmark
 
 set +e
 # Optimized builds:
