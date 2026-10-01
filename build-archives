@@ -5,6 +5,9 @@ export PATH=/opt/local/bin:/opt/local/sbin:$PATH
 port -d -N selfupdate 
 port -d -N upgrade outdated
 # Twice for apple-gcc-42 for bootstrap.
+sudo port deactivate apple-gcc42
+# Yt-dlp depends on ffmpeg:
+sudo port -d -N uninstall --follow-dependents yt-dlp
 port -d -N install \
     apple-gcc42 \
     apple-gcc42 \
@@ -26,7 +29,8 @@ port -d -N install \
     wget \
     cmark \
     gmake \
-    cmake
+    cmake \
+    legacy-support
 
 set +e
 # Optimized builds:
@@ -45,3 +49,6 @@ if [ "$(machine)" == "ppc970" ]; then
     sudo port deactivate mplayer
     sudo port -d -N install mplayer +G5
 fi
+
+# Depends on FFmpeg:
+sudo port -d -N install yt-dlp
