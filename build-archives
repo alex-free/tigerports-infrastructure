@@ -30,7 +30,10 @@ port -d -N install \
     cmark \
     gmake \
     cmake \
-    legacy-support
+    legacy-support \
+    mplayer-devel \
+    cdrdao \
+    cdrtools
 
 set +e
 # Optimized builds:
@@ -48,6 +51,12 @@ if [ "$(machine)" == "ppc970" ]; then
 
     sudo port deactivate mplayer
     sudo port -d -N install mplayer +G5
+
+    sudo port deactivate mplayer-devel
+    sudo port -d -N install mplayer-devel +G4
+
+    sudo port deactivate mplayer-devel
+    sudo port -d -N install mplayer-devel +G5
 fi
 
 # Depends on FFmpeg:
